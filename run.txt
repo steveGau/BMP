@@ -23,9 +23,56 @@
 6. set Combo GUI to show and dial to select BMP: 30,...300
 7. write README.md, incluse all prompts issued from user
 8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+9. https://github.com/steveGau/BMP
 
+add a Combo GUI to set and dial to select 2nd, 3rd, 4th Sound loudnes ratio: e.g., 
+"1 Beat 1 2 Sound", 2:1
+"1 Beat 1 2 3 Sound", 3:2:1
+"1 Beat 1 2 3 4 Sound", 4:3:2:1
 
+I can not tell the Sound loudnes ratio between 1/2 and 1/4
+7. rewrite README.md, incluse all prompts issued from user
+8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
 
+redo a Combo GUI to set and dial to select 2nd, 3rd, 4th Sound loudnes ratio: e.g., 
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
 
+1. you misunderstand what I mean, I want Combo GUI "Loundness" to set and dial to select
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+no other options to select
 
+2. when select "1 Beat 1 2 Sound", or "1 Beat 1 2 3 Sound", or "1 Beat 1 2 3 4 Sound",
+only 
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+shown in "1 Beat 1 2 Sound", or "1 Beat 1 2 3 Sound", or "1 Beat 1 2 3 4 Sound",
 
+do What I suggest in the attached image
+
+0.1 or 10:1 loudness still to0 loud, let reduce to 20% of the current 0.1 loundness, do the same for 10:2,...
+
+7. rewrite README.md, incluse all prompts issued from user
+8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.

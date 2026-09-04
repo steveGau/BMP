@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import os
+import struct
+import sys
 import time
 import tkinter as tk
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import BMP
 
 
@@ -66,6 +70,71 @@ class ParseAndTimingTests(unittest.TestCase):
         self.assertFalse(BMP.should_accent(1, 1, True))
         self.assertFalse(BMP.should_accent(2, 0, True))
         self.assertFalse(BMP.should_accent(1, 0, False))
+
+
+class LoudnessRatioTests(unittest.TestCase):
+    def test_defaults_match_requested_examples(self) -> None:
+        self.assertEqual(BMP.default_loudness_ratio(1), (1,))
+        self.assertEqual(BMP.default_loudness_ratio(2), (2, 1))
+        self.assertEqual(BMP.default_loudness_ratio(3), (2, 1, 1))
+        self.assertEqual(BMP.default_loudness_ratio(4), (2, 1, 1, 1))
+        self.assertEqual(BMP.default_sound_levels(10, 1), (10,))
+        self.assertEqual(BMP.default_sound_levels(10, 2), (10, 1))
+        self.assertEqual(BMP.default_sound_levels(10, 3), (10, 5, 1))
+        self.assertEqual(BMP.default_sound_levels(10, 4), (10, 5, 3, 1))
+        self.assertEqual(BMP.expand_loudness_ratio(4, 2), (4, 1))
+        self.assertEqual(BMP.expand_loudness_ratio(4, 3), (4, 2, 1))
+        self.assertEqual(BMP.expand_loudness_ratio(10, 4), (10, 5, 3, 1))
+        self.assertEqual(BMP.resize_sound_levels((10, 5, 3, 1), 8, 4), (8, 5, 3, 1))
+        self.assertEqual(BMP.format_loudness_ratio((2, 1)), "2:1")
+        self.assertEqual(BMP.format_loudness_ratio((10, 5, 3, 1)), "10:5:3:1")
+
+    def test_parse_and_gain(self) -> None:
+        self.assertEqual(BMP.parse_loudness_ratio("2:1"), (2, 1))
+        self.assertEqual(BMP.parse_loudness_ratio("10:5:3:1"), (10, 5, 3, 1))
+        self.assertAlmostEqual(BMP.loudness_gain((2, 1), 0), 1.0)
+        self.assertAlmostEqual(BMP.loudness_gain((2, 1), 1), 0.1)
+        self.assertAlmostEqual(BMP.loudness_gain((10, 5, 3, 1), 0), 1.0)
+        self.assertAlmostEqual(BMP.loudness_gain((10, 5, 3, 1), 1), 0.1)
+        self.assertAlmostEqual(BMP.loudness_gain((10, 5, 3, 1), 2), 0.06)
+        self.assertAlmostEqual(BMP.loudness_gain((10, 5, 3, 1), 3), 0.02)
+        self.assertAlmostEqual(BMP.loudness_gain((10, 2), 1), 0.04)
+        half = BMP.loudness_gain((2, 1), 1)
+        tenth = BMP.loudness_gain((10, 1), 1)
+        self.assertAlmostEqual(half / tenth, 5.0)
+        self.assertAlmostEqual(BMP.loudness_gain((3, 2, 1), 1), (2 / 3) * BMP.LATER_SOUND_GAIN)
+        self.assertAlmostEqual(BMP.loudness_gain((3, 2, 1), 2), (1 / 3) * BMP.LATER_SOUND_GAIN)
+
+    def test_fraction_labels_show_half_and_quarter(self) -> None:
+        self.assertEqual(BMP.ratio_fraction_labels((2, 1)), ("1", "1/2"))
+        self.assertEqual(BMP.ratio_fraction_labels((4, 1)), ("1", "1/4"))
+        self.assertEqual(BMP.ratio_fraction_labels((10, 5, 3, 1)), ("1", "1/2", "3/10", "1/10"))
+        self.assertEqual(BMP.format_ratio_fractions((2, 1)), "1  ·  1/2")
+        self.assertEqual(BMP.format_ratio_fractions((4, 1)), "1  ·  1/4")
+
+    def test_presets_include_n_to_one_through_ten(self) -> None:
+        expected = ("2:1", "3:1", "4:1", "5:1", "6:1", "7:1", "8:1", "9:1", "10:1")
+        self.assertEqual(BMP.N_TO_ONE_RATIOS, expected)
+        self.assertEqual(BMP.ratio_presets_for(2), expected)
+        self.assertEqual(BMP.ratio_presets_for(3), expected)
+        self.assertEqual(BMP.ratio_presets_for(4), expected)
+        self.assertNotIn("3:2:1", BMP.ratio_presets_for(3))
+        self.assertNotIn("4:3:2:1", BMP.ratio_presets_for(4))
+        self.assertNotIn("10:1:1", BMP.ratio_presets_for(3))
+        self.assertEqual(BMP.parse_loudness_ratio("10:1"), (10, 1))
+        self.assertAlmostEqual(BMP.loudness_gain((10, 1), 1), 0.02)
+        self.assertEqual(BMP.LATER_SOUND_GAIN, 0.2)
+        self.assertGreater(BMP.loudness_gain((2, 1), 1), BMP.loudness_gain((5, 1), 1))
+        self.assertGreater(BMP.loudness_gain((5, 1), 1), BMP.loudness_gain((10, 1), 1))
+        self.assertEqual(BMP.MAX_RATIO_PART, 10)
+
+    def test_scale_pcm_reduces_amplitude(self) -> None:
+        pcm = BMP._raw_pcm(880, 20, 0.8)
+        quieter = BMP._scale_pcm(pcm, 0.5)
+        self.assertEqual(len(pcm), len(quieter))
+        original = abs(struct.unpack_from("<h", pcm, 20)[0])
+        scaled = abs(struct.unpack_from("<h", quieter, 20)[0])
+        self.assertLess(scaled, original)
 
 
 class TapTempoTests(unittest.TestCase):
@@ -193,7 +262,11 @@ class GuiControlTests(unittest.TestCase):
         self.assertEqual(self.app.sig_box.get(), "2/4")
         self.assertEqual(self.app.sound_box.get(), "1 Beat 1 Sound")
         self.assertEqual(self.app.accent_box.get(), "Accent On")
-        self.assertFalse(hasattr(self.app, "play_box"))
+        self.assertEqual(self.app.ratio_box.get(), "10:1")
+        self.assertFalse(self.app.ratio_box._enabled)
+        self.assertTrue(self.app.sound_bars[0].winfo_ismapped())
+        self.assertFalse(self.app.sound_bars[1].winfo_ismapped())
+        self.assertEqual(str(self.app.sound_bars[0].scale.cget("state")), "disabled")
 
     def test_time_signature_dropdown_lists_all_items_and_selects(self) -> None:
         box = self.app.sig_box
@@ -221,6 +294,13 @@ class GuiControlTests(unittest.TestCase):
         pump(self.root)
         self.assertEqual(box.get(), "1 Beat 1 2 Sound")
         self.assertEqual(self.app.engine.subdivisions, 2)
+        self.assertEqual(self.app.ratio_box.get(), "10:1")
+        self.assertEqual(self.app._ratio, (10, 1))
+        self.assertTrue(self.app.sound_bars[0].winfo_ismapped())
+        self.assertTrue(self.app.sound_bars[1].winfo_ismapped())
+        self.assertFalse(self.app.sound_bars[2].winfo_ismapped())
+        self.assertEqual(str(self.app.sound_bars[1].scale.cget("state")), "normal")
+        self.assertTrue(self.app.ratio_box._enabled)
 
     def test_accent_dropdown_lists_both_items_and_selects(self) -> None:
         box = self.app.accent_box
@@ -234,6 +314,72 @@ class GuiControlTests(unittest.TestCase):
         box.select("Accent On")
         pump(self.root)
         self.assertTrue(self.app.engine.accent_on)
+
+    def test_loudness_combo_and_dials_follow_sound_pattern(self) -> None:
+        app = self.app
+        expected = list(BMP.N_TO_ONE_RATIOS)
+        for pattern, count in (
+            ("1 Beat 1 2 Sound", 2),
+            ("1 Beat 1 2 3 Sound", 3),
+            ("1 Beat 1 2 3 4 Sound", 4),
+        ):
+            app.sound_box.select(pattern)
+            pump(self.root)
+            app.ratio_box.open_dropdown()
+            pump(self.root)
+            self.assertEqual(list(app.ratio_box.dropdown_values()), expected)
+            self.assertNotIn("3:2:1", app.ratio_box.dropdown_values())
+            self.assertNotIn("4:3:2:1", app.ratio_box.dropdown_values())
+            app.ratio_box.close_dropdown()
+            pump(self.root)
+            mapped = [bar.winfo_ismapped() for bar in app.sound_bars]
+            self.assertEqual(mapped, [i < count for i in range(4)])
+
+        app.sound_box.select("1 Beat 1 2 Sound")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "10:1")
+        self.assertEqual(app._ratio, (10, 1))
+        self.assertEqual(app.sound_bars[0].ratio_label.cget("text"), "1:1")
+        self.assertEqual(app.sound_bars[1].ratio_label.cget("text"), "10:1")
+        app.ratio_box.select("4:1")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "4:1")
+        self.assertEqual(app._ratio, (4, 1))
+
+        app.sound_box.select("1 Beat 1 2 3 Sound")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "4:1")
+        self.assertEqual(app._ratio, (4, 2, 1))
+        app.ratio_box.select("7:1")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "7:1")
+        self.assertEqual(app._ratio, (7, 2, 1))
+
+        app.sound_box.select("1 Beat 1 2 3 4 Sound")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "7:1")
+        self.assertEqual(app._ratio, (7, 4, 2, 1))
+        app.ratio_box.select("10:1")
+        pump(self.root)
+        self.assertEqual(app.ratio_box.get(), "10:1")
+        self.assertEqual(app._ratio, (10, 4, 2, 1))
+        app.sound_box.select("1 Beat 1 Sound")
+        pump(self.root)
+        app.sound_box.select("1 Beat 1 2 3 4 Sound")
+        pump(self.root)
+        self.assertEqual(app._ratio, (10, 5, 3, 1))
+        self.assertEqual(app.sound_bars[0].ratio_label.cget("text"), "1:1")
+        self.assertEqual(app.sound_bars[1].ratio_label.cget("text"), "10:5")
+        self.assertEqual(app.sound_bars[2].ratio_label.cget("text"), "10:3")
+        self.assertEqual(app.sound_bars[3].ratio_label.cget("text"), "10:1")
+        self.assertAlmostEqual(BMP.loudness_gain(app._ratio, 0), 1.0)
+        self.assertAlmostEqual(BMP.loudness_gain(app._ratio, 1), 0.1)
+        self.assertAlmostEqual(BMP.loudness_gain(app._ratio, 2), 0.06)
+        self.assertAlmostEqual(BMP.loudness_gain(app._ratio, 3), 0.02)
+        app.sound_bars[1].set_level(8)
+        pump(self.root)
+        self.assertEqual(app._ratio, (10, 8, 3, 1))
+        self.assertEqual(app.sound_bars[1].ratio_label.cget("text"), "10:8")
 
     def test_bpm_dial_selects_30_to_300(self) -> None:
         dial = self.app.bpm_dial

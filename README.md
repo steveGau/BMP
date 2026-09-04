@@ -1,6 +1,6 @@
 # BMP Player
 
-A dark-theme digital metronome for Windows. The GUI follows the attached Digital Metronome layout: title, combo boxes, BPM dial, pendulum arc, TAP, and a circular play/stop button.
+A dark-theme digital metronome for Windows. The GUI follows the Digital Metronome layout: title, combo boxes, per-sound loudness bars, BPM dial, pendulum arc, TAP, and a circular play/stop button.
 
 ## Run
 
@@ -12,6 +12,8 @@ python BMP.py
 
 Needs Python 3 with Tkinter (standard on Windows). No extra packages.
 
+GitHub: https://github.com/steveGau/BMP
+
 ## Controls
 
 | Control | What it does |
@@ -20,23 +22,35 @@ Needs Python 3 with Tkinter (standard on Windows). No extra packages.
 | Time signature combo | `1/4`, `2/4`, `3/4`, `4/4`, `5/4`, `6/4`, `7/4`, `3/8`, `6/8`, `9/8`, `12/8` |
 | Sound combo | `1 Beat 1 Sound`, `1 Beat 1 2 Sound`, `1 Beat 1 2 3 Sound`, `1 Beat 1 2 3 4 Sound` |
 | Accent combo | `Accent On`, `Accent Off` |
+| Loudness combo | `2:1` … `10:1` only (the first-sound scale `N`) |
+| Loudness bars | One bar per click in the selected sound pattern. 1st Sound is locked at `1:1`. Later sounds show `N:k` |
 | BPM dial | Drag or mouse-wheel, **30–300** |
 | TAP | Tap tempo; updates the dial |
 | Circular button | Play / Stop |
 
 Each combo shows the current value. Click it to open the full list.
 
+When **1 Beat 1 2 3 4 Sound** is selected, four bars appear. With Loudness `10:1` the defaults are `1:1`, `10:5`, `10:3`, `10:1`. Playback volume:
+
+- 1st sound = **1**
+- later sound = `(k / N) * 0.2`
+
+So `10:1` plays at **0.02**, `10:2` at **0.04**, `10:5` at **0.10**. Two-sound and three-sound patterns show 2 or 3 bars the same way.
+
 ## Tests
 
+From this folder:
+
 ```bat
-python -m unittest test_BMP.py -v
+python OLDCODE/test_BMP.py -v
 ```
 
 ## Files
 
 - `BMP.py` — metronome app
 - `run_BMP.bat` — launcher
-- `test_BMP.py` — timing, sound, and GUI tests
+- `OLDCODE/test_BMP.py` — timing, sound, and GUI tests
+- `run.txt` — working copy of user prompts
 
 ## User prompts
 
@@ -81,5 +95,112 @@ Prompts issued for this project, in order:
 
 ```
 7. write README.md, incluse all prompts issued from user
+8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+```
+
+### Prompt 5
+
+```
+9. https://github.com/steveGau/BMP
+```
+
+### Prompt 6
+
+```
+add a Combo GUI to set and dial to select 2nd, 3rd, 4th Sound loudnes ratio: e.g.,
+"1 Beat 1 2 Sound", 2:1
+"1 Beat 1 2 3 Sound", 3:2:1
+"1 Beat 1 2 3 4 Sound", 4:3:2:1
+```
+
+### Prompt 7
+
+```
+I can not tell the Sound loudnes ratio between 1/2 and 1/4
+```
+
+### Prompt 8
+
+```
+7. rewrite README.md, incluse all prompts issued from user
+8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+```
+
+### Prompt 9
+
+```
+redo a Combo GUI to set and dial to select 2nd, 3rd, 4th Sound loudnes ratio: e.g.,
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+```
+
+### Prompt 10
+
+```
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+```
+
+### Prompt 11
+
+```
+1. you misunderstand what I mean, I want Combo GUI "Loundness" to set and dial to select
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+no other options to select
+
+2. when select "1 Beat 1 2 Sound", or "1 Beat 1 2 3 Sound", or "1 Beat 1 2 3 4 Sound",
+only
+2:1
+3:1
+4:1
+5:1
+6:1
+7:1
+8:1
+9:1
+10:1
+shown in "1 Beat 1 2 Sound", or "1 Beat 1 2 3 Sound", or "1 Beat 1 2 3 4 Sound",
+```
+
+### Prompt 12
+
+```
+do What I suggest in the attached image
+```
+
+Attached image notes: when **1 Beat 1 2 3 4 Sound** is selected, show four loudness bars (1st / 2nd / 3rd / 4th Sound). 1st sound is 1. 2nd is 1st × (5/10), 3rd is 1st × (3/10), 4th is 1st × (1/10), shown as `10:5`, `10:3`, `10:1`.
+
+### Prompt 13
+
+```
+0.1 or 10:1 loudness still to0 loud, let reduce to 20% of the current 0.1 loundness, do the same for 10:2,...
+```
+
+### Prompt 14
+
+```
+7. rewrite README.md, incluse all prompts issued from user
 8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
 ```

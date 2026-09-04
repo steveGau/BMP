@@ -87,6 +87,10 @@ DEFAULT_BPM = 120
 TAP_RESET_GAP_SEC = 2.5
 TAP_HISTORY = 8
 BEEP_FREQ = {"accent": 1320, "beat": 880, "sub": 660}
+MIN_RATIO_PART = 1
+MAX_RATIO_PART = 10
+LATER_SOUND_GAIN = 0.2
+N_TO_ONE_RATIOS = tuple(f"{n}:1" for n in range(2, MAX_RATIO_PART + 1))
 
 
 def parse_time_signature(value: str) -> Tuple[int, int]:
@@ -114,6 +118,106 @@ def subdivisions_for_pattern(pattern: str) -> int:
 
 def clamp_bpm(bpm: float, lo: int = MIN_BPM, hi: int = MAX_BPM) -> int:
     return int(min(hi, max(lo, round(bpm))))
+
+
+def clamp_ratio_part(value: float) -> int:
+    return int(min(MAX_RATIO_PART, max(MIN_RATIO_PART, round(value))))
+
+
+def default_sound_levels(n: int, count: int) -> Tuple[int, ...]:
+    n = int(min(MAX_RATIO_PART, max(2, n)))
+    count = max(1, min(4, count))
+    if count == 1:
+        return (n,)
+    if count == 2:
+        return (n, 1)
+    if count == 3:
+        return (n, max(1, int(round(n / 2))), 1)
+    return (n, max(1, int(round(n / 2))), max(1, int(round(3 * n / 10))), 1)
+
+
+def resize_sound_levels(levels: Sequence[int], n: int, count: int) -> Tuple[int, ...]:
+    n = int(min(MAX_RATIO_PART, max(2, n)))
+    count = max(1, min(4, count))
+    if count == 1:
+        return (n,)
+    defaults = default_sound_levels(n, count)
+    out = [n]
+    for index in range(1, count):
+        if index < len(levels):
+            out.append(max(1, min(n, int(levels[index]))))
+        else:
+            out.append(defaults[index])
+    return tuple(out)
+
+
+def default_loudness_ratio(subdivisions: int) -> Tuple[int, ...]:
+    count = max(1, min(4, subdivisions))
+    if count == 1:
+        return (1,)
+    return default_sound_levels(2, count)
+
+
+def format_loudness_ratio(parts: Sequence[int]) -> str:
+    return ":".join(str(int(part)) for part in parts)
+
+
+def parse_loudness_ratio(value: str) -> Tuple[int, ...]:
+    tokens = [token.strip() for token in value.split(":") if token.strip()]
+    if not tokens:
+        raise ValueError(f"Invalid loudness ratio: {value}")
+    parts = tuple(clamp_ratio_part(int(token)) for token in tokens)
+    if any(part < 1 for part in parts):
+        raise ValueError(f"Invalid loudness ratio: {value}")
+    return parts
+
+
+def ratio_presets_for(_subdivisions: int = 2) -> Tuple[str, ...]:
+    return N_TO_ONE_RATIOS
+
+
+def expand_loudness_ratio(n_to_one: int, subdivisions: int) -> Tuple[int, ...]:
+    count = max(1, min(4, subdivisions))
+    if count <= 1:
+        return (1,)
+    return default_sound_levels(n_to_one, count)
+
+
+def n_from_ratio_text(value: str) -> int:
+    parts = parse_loudness_ratio(value)
+    return int(min(MAX_RATIO_PART, max(2, parts[0])))
+
+
+def loudness_gain(ratio: Sequence[int], subdivision: int) -> float:
+    """Volume of a click: 1st is 1.0; later sounds are (k / N) * 0.2."""
+    if not ratio:
+        return 1.0
+    peak = float(ratio[0])
+    if peak <= 0:
+        return 1.0
+    index = min(max(0, subdivision), len(ratio) - 1)
+    linear = max(0.0, min(1.0, ratio[index] / peak))
+    if index == 0:
+        return 1.0
+    return max(0.002, linear * LATER_SOUND_GAIN)
+
+
+def ratio_fraction_labels(parts: Sequence[int]) -> Tuple[str, ...]:
+    if not parts:
+        return ()
+    peak = max(parts)
+    labels = []
+    for part in parts:
+        if part == peak:
+            labels.append("1")
+            continue
+        divisor = math.gcd(int(part), int(peak))
+        labels.append(f"{part // divisor}/{peak // divisor}")
+    return tuple(labels)
+
+
+def format_ratio_fractions(parts: Sequence[int]) -> str:
+    return "  ·  ".join(ratio_fraction_labels(parts))
 
 
 def tap_tempo_from_times(
@@ -167,7 +271,7 @@ class TapTempo:
 def _raw_pcm(freq: float, duration_ms: int, volume: float, sample_rate: int = SAMPLE_RATE) -> bytes:
     count = max(1, int(sample_rate * duration_ms / 1000.0))
     samples = bytearray()
-    decay = 90.0 if freq >= 900 else 70.0
+    decay = 48.0
     for index in range(count):
         t = index / sample_rate
         envelope = math.exp(-t * decay)
@@ -176,8 +280,7 @@ def _raw_pcm(freq: float, duration_ms: int, volume: float, sample_rate: int = SA
     return bytes(samples)
 
 
-def _pcm_wav(freq: float, duration_ms: int, volume: float) -> bytes:
-    pcm = _raw_pcm(freq, duration_ms, volume)
+def _wav_from_pcm(pcm: bytes) -> bytes:
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav:
         wav.setnchannels(1)
@@ -187,21 +290,37 @@ def _pcm_wav(freq: float, duration_ms: int, volume: float) -> bytes:
     return buffer.getvalue()
 
 
+def _pcm_wav(freq: float, duration_ms: int, volume: float) -> bytes:
+    return _wav_from_pcm(_raw_pcm(freq, duration_ms, volume))
+
+
+def _scale_pcm(pcm: bytes, gain: float) -> bytes:
+    gain = max(0.0, min(1.0, gain))
+    if gain >= 0.999:
+        return pcm
+    scaled = bytearray()
+    for index in range(0, len(pcm), 2):
+        sample = struct.unpack_from("<h", pcm, index)[0]
+        value = int(sample * gain)
+        scaled.extend(struct.pack("<h", max(-32767, min(32767, value))))
+    return bytes(scaled)
+
+
 class ClickPlayer:
     """Keep the Windows audio device open so clicks do not die after a few plays."""
 
     def __init__(self) -> None:
         self._pcm = {
-            "accent": _raw_pcm(1320, 28, 0.85),
-            "beat": _raw_pcm(880, 24, 0.7),
-            "sub": _raw_pcm(660, 18, 0.42),
+            "accent": _raw_pcm(1320, 42, 0.95),
+            "beat": _raw_pcm(880, 42, 0.9),
+            "sub": _raw_pcm(880, 42, 0.9),
         }
         self._wav = {
-            "accent": _pcm_wav(1320, 28, 0.85),
-            "beat": _pcm_wav(880, 24, 0.7),
-            "sub": _pcm_wav(660, 18, 0.42),
+            "accent": _pcm_wav(1320, 42, 0.95),
+            "beat": _pcm_wav(880, 42, 0.9),
+            "sub": _pcm_wav(880, 42, 0.9),
         }
-        self._queue: "queue.Queue[Optional[str]]" = queue.Queue(maxsize=4)
+        self._queue: "queue.Queue[Optional[Tuple[str, float]]]" = queue.Queue(maxsize=4)
         self._alive = True
         self.play_count = 0
         self.fail_count = 0
@@ -233,18 +352,19 @@ class ClickPlayer:
         self._wave_ok = err == 0
         self._winmm = winmm if self._wave_ok else None
 
-    def play(self, kind: str) -> None:
+    def play(self, kind: str, gain: float = 1.0) -> None:
         if not self._alive:
             return
+        item = (kind, max(0.008, min(1.0, gain)))
         try:
-            self._queue.put_nowait(kind)
+            self._queue.put_nowait(item)
         except queue.Full:
             try:
                 self._queue.get_nowait()
             except queue.Empty:
                 pass
             try:
-                self._queue.put_nowait(kind)
+                self._queue.put_nowait(item)
             except queue.Full:
                 pass
 
@@ -265,16 +385,17 @@ class ClickPlayer:
 
     def _worker(self) -> None:
         while self._alive:
-            kind = self._queue.get()
-            if kind is None or not self._alive:
+            item = self._queue.get()
+            if item is None or not self._alive:
                 return
-            self._play_one(kind)
+            kind, gain = item
+            self._play_one(kind, gain)
 
-    def _play_one(self, kind: str) -> None:
-        if self._play_waveout(kind):
+    def _play_one(self, kind: str, gain: float = 1.0) -> None:
+        if self._play_waveout(kind, gain):
             self.play_count += 1
             return
-        if self._play_winsound(kind):
+        if self._play_winsound(kind, gain):
             self.play_count += 1
             return
         if self._play_beep(kind):
@@ -282,10 +403,10 @@ class ClickPlayer:
             return
         self.fail_count += 1
 
-    def _play_waveout(self, kind: str) -> bool:
+    def _play_waveout(self, kind: str, gain: float = 1.0) -> bool:
         if not self._wave_ok or getattr(self, "_winmm", None) is None:
             return False
-        pcm = self._pcm.get(kind, self._pcm["beat"])
+        pcm = _scale_pcm(self._pcm.get(kind, self._pcm["beat"]), gain)
         buf = ctypes.create_string_buffer(pcm, len(pcm))
         hdr = _WAVEHDR()
         hdr.lpData = ctypes.cast(buf, ctypes.c_void_p)
@@ -315,10 +436,11 @@ class ClickPlayer:
                 pass
         self._live_buffers = keep[-6:]
 
-    def _play_winsound(self, kind: str) -> bool:
+    def _play_winsound(self, kind: str, gain: float = 1.0) -> bool:
         if winsound is None:
             return False
-        data = self._wav.get(kind, self._wav["beat"])
+        pcm = _scale_pcm(self._pcm.get(kind, self._pcm["beat"]), gain)
+        data = _wav_from_pcm(pcm)
         try:
             winsound.PlaySound(data, winsound.SND_MEMORY | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
             return True
@@ -460,6 +582,7 @@ class DropCombo(tk.Frame):
         self.var = tk.StringVar(value=default)
         self._popup: Optional[tk.Toplevel] = None
         self._listbox: Optional[tk.Listbox] = None
+        self._enabled = True
 
         self.display = tk.Label(
             self,
@@ -489,8 +612,26 @@ class DropCombo(tk.Frame):
 
     def set(self, value: str) -> None:
         if value not in self.values:
-            raise ValueError(f"Unknown combo value: {value}")
+            self.values.append(value)
         self.var.set(value)
+
+    def set_values(self, values: Sequence[str], selected: Optional[str] = None) -> None:
+        self.close_dropdown()
+        self.values = list(values)
+        if not self.values:
+            raise ValueError("Combo needs at least one value")
+        if selected is None:
+            selected = self.var.get() if self.var.get() in self.values else self.values[0]
+        elif selected not in self.values:
+            self.values.insert(0, selected)
+        self.var.set(selected)
+
+    def set_enabled(self, enabled: bool) -> None:
+        color = COMBO_FG if enabled else MUTED
+        cursor = "hand2" if enabled else "arrow"
+        self.display.config(fg=color, cursor=cursor)
+        self.arrow.config(fg=color, cursor=cursor)
+        self._enabled = enabled
 
     def select(self, value: str) -> None:
         self.set(value)
@@ -518,6 +659,8 @@ class DropCombo(tk.Frame):
         self._close()
 
     def _toggle(self, _event: Optional[tk.Event] = None) -> None:
+        if not getattr(self, "_enabled", True):
+            return
         if self._popup is not None:
             self._close()
         else:
@@ -669,13 +812,140 @@ class BpmDial(tk.Frame):
         return "break"
 
 
+SOUND_BAR_TITLES = ("1st Sound", "2nd Sound", "3rd Sound", "4th Sound")
+
+
+class SoundBar(tk.Frame):
+    """One loudness bar: 1st is 1:1; later sounds are N:k of the 1st."""
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        title: str,
+        index: int,
+        command: Optional[Callable[[int, int], None]] = None,
+    ) -> None:
+        super().__init__(parent, bg=BG)
+        self.index = index
+        self.command = command
+        self._syncing = False
+        self._n = MAX_RATIO_PART
+        self._locked = index == 0
+        self.var = tk.IntVar(value=MAX_RATIO_PART)
+
+        header = tk.Frame(self, bg=BG)
+        header.pack(fill="x")
+        self.title_label = tk.Label(
+            header,
+            text=title,
+            fg=COMBO_FG,
+            bg=BG,
+            font=("Segoe UI", 10, "bold"),
+            anchor="w",
+        )
+        self.title_label.pack(side="left")
+        self.ratio_label = tk.Label(
+            header,
+            text="1:1",
+            fg=COMBO_FG,
+            bg=BG,
+            font=("Segoe UI", 10, "bold"),
+        )
+        self.ratio_label.pack(side="right")
+
+        self.scale = tk.Scale(
+            self,
+            from_=1,
+            to=MAX_RATIO_PART,
+            orient="horizontal",
+            resolution=1,
+            showvalue=0,
+            variable=self.var,
+            command=self._on_scale,
+            bg=BG,
+            fg=COMBO_FG,
+            troughcolor="#3A3A3A",
+            highlightthickness=0,
+            bd=0,
+            sliderrelief="flat",
+            activebackground=ACCENT,
+            length=260,
+            cursor="hand2",
+        )
+        self.scale.pack(fill="x", pady=(0, 4))
+        self.scale.bind("<MouseWheel>", self._on_wheel)
+        self.scale.bind("<Button-4>", self._on_wheel)
+        self.scale.bind("<Button-5>", self._on_wheel)
+
+    def get(self) -> int:
+        return int(self.var.get())
+
+    def set_level(self, k: int, notify: bool = True) -> None:
+        if self._locked:
+            return
+        value = max(1, min(self._n, int(k)))
+        self._syncing = True
+        try:
+            self.var.set(value)
+            self._refresh_label()
+        finally:
+            self._syncing = False
+        if notify and self.command:
+            self.command(self.index, value)
+
+    def configure_bar(self, n: int, k: int, locked: bool) -> None:
+        self._n = int(min(MAX_RATIO_PART, max(2, n)))
+        self._locked = locked
+        k = max(1, min(self._n, int(k)))
+        self._syncing = True
+        try:
+            self.scale.config(from_=1, to=self._n, state="disabled" if locked else "normal")
+            self.var.set(self._n if locked else k)
+            self._refresh_label()
+        finally:
+            self._syncing = False
+
+    def _refresh_label(self) -> None:
+        if self._locked:
+            self.ratio_label.config(text="1:1")
+        else:
+            self.ratio_label.config(text=f"{self._n}:{self.get()}")
+
+    def _on_scale(self, raw: str) -> None:
+        if self._locked:
+            return
+        value = max(1, min(self._n, int(round(float(raw)))))
+        self._refresh_label()
+        if self._syncing:
+            return
+        if self.command:
+            self.command(self.index, value)
+
+    def _on_wheel(self, event: tk.Event) -> str:
+        if self._locked or str(self.scale.cget("state")) == "disabled":
+            return "break"
+        delta = 1
+        if getattr(event, "num", None) == 5 or getattr(event, "delta", 0) < 0:
+            delta = -1
+        value = max(1, min(self._n, self.get() + delta))
+        self._syncing = True
+        try:
+            self.var.set(value)
+            self._refresh_label()
+        finally:
+            self._syncing = False
+        if self.command:
+            self.command(self.index, value)
+        return "break"
+
+
 class MetronomeApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("BMP Player")
         self.root.configure(bg=BG)
-        self.root.geometry("420x800")
-        self.root.minsize(380, 720)
+        self.root.geometry("420x1000")
+        self.root.minsize(380, 880)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.clicks = ClickPlayer()
@@ -688,6 +958,8 @@ class MetronomeApp:
         self._current_beat = 1
         self._playing_visual = False
         self._anim_id: Optional[str] = None
+        self._syncing_ratio = False
+        self._ratio: Tuple[int, ...] = (1,)
 
         self._build()
         self._apply_settings()
@@ -709,11 +981,22 @@ class MetronomeApp:
         combos.pack(fill="x", padx=36, pady=(8, 4))
 
         self.sig_box = DropCombo(combos, TIME_SIGNATURES, "2/4", command=self._on_settings_changed)
-        self.sound_box = DropCombo(combos, SOUND_PATTERNS, SOUND_PATTERNS[0], command=self._on_settings_changed)
+        self.sound_box = DropCombo(combos, SOUND_PATTERNS, SOUND_PATTERNS[0], command=self._on_sound_changed)
         self.accent_box = DropCombo(combos, ACCENT_OPTIONS, "Accent On", command=self._on_settings_changed)
         self.sig_box.pack(fill="x", pady=(0, 8))
         self.sound_box.pack(fill="x", pady=(0, 8))
         self.accent_box.pack(fill="x", pady=(0, 8))
+
+        tk.Label(combos, text="Loudness", fg=COMBO_FG, bg=BG, font=("Segoe UI", 11, "bold"), anchor="w").pack(fill="x")
+        self.ratio_box = DropCombo(combos, N_TO_ONE_RATIOS, "10:1", command=self._on_ratio_combo)
+        self.ratio_box.pack(fill="x", pady=(2, 6))
+        self.sound_bars_frame = tk.Frame(combos, bg=BG)
+        self.sound_bars_frame.pack(fill="x", pady=(0, 8))
+        self.sound_bars = [
+            SoundBar(self.sound_bars_frame, title, index, command=self._on_sound_bar)
+            for index, title in enumerate(SOUND_BAR_TITLES)
+        ]
+        self._sync_ratio_controls(reset=True)
 
         self.bpm_dial = BpmDial(combos, value=DEFAULT_BPM, command=self._on_bpm_dial)
         self.bpm_dial.pack(fill="x", pady=(0, 10))
@@ -767,6 +1050,58 @@ class MetronomeApp:
         )
         self._beat_span = beat_interval_sec(bpm)
 
+    def _on_sound_changed(self, _value: str = "") -> None:
+        self._sync_ratio_controls(reset=True)
+        self._on_settings_changed(_value)
+
+    def _on_ratio_combo(self, value: str) -> None:
+        if self._syncing_ratio:
+            return
+        n = n_from_ratio_text(value)
+        count = subdivisions_for_pattern(self.sound_box.get())
+        self._ratio = resize_sound_levels(self._ratio, n, count)
+        self._refresh_sound_bars()
+
+    def _on_sound_bar(self, index: int, value: int) -> None:
+        if self._syncing_ratio or index <= 0:
+            return
+        levels = list(self._ratio)
+        if index >= len(levels):
+            return
+        n = n_from_ratio_text(self.ratio_box.get())
+        levels[index] = max(1, min(n, value))
+        self._ratio = tuple(levels)
+        self._refresh_sound_bars()
+
+    def _sync_ratio_controls(self, reset: bool = False) -> None:
+        count = subdivisions_for_pattern(self.sound_box.get())
+        selected = self.ratio_box.get() if self.ratio_box.get() in N_TO_ONE_RATIOS else "10:1"
+        n = n_from_ratio_text(selected)
+        if reset:
+            self._ratio = default_sound_levels(n, count)
+        else:
+            self._ratio = resize_sound_levels(self._ratio, n, count)
+        self._syncing_ratio = True
+        try:
+            self.ratio_box.set_values(N_TO_ONE_RATIOS, selected)
+            self.ratio_box.set_enabled(count >= 2)
+        finally:
+            self._syncing_ratio = False
+        self._refresh_sound_bars()
+
+    def _refresh_sound_bars(self) -> None:
+        count = subdivisions_for_pattern(self.sound_box.get())
+        n = n_from_ratio_text(self.ratio_box.get()) if self.ratio_box.get() in N_TO_ONE_RATIOS else 10
+        levels = resize_sound_levels(self._ratio, n, count)
+        self._ratio = levels
+        for index, bar in enumerate(self.sound_bars):
+            if index < count:
+                bar.configure_bar(n, levels[index], locked=(index == 0))
+                if not bar.winfo_ismapped():
+                    bar.pack(fill="x", pady=(0, 2))
+            else:
+                bar.pack_forget()
+
     def _on_settings_changed(self, _value: str = "") -> None:
         self._apply_settings()
         if not self.engine.playing:
@@ -819,7 +1154,7 @@ class MetronomeApp:
         return "break"
 
     def _on_engine_click(self, beat: int, subdivision: int, kind: str) -> None:
-        self.clicks.play(kind)
+        self.clicks.play(kind, loudness_gain(self._ratio, subdivision))
         if self._closed:
             return
         try:
