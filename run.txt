@@ -1,0 +1,31 @@
+###############
+1. create a BMP Player: BMP.py
+2. see attached "image Digital Metronome GUI.png"
+3. create a GUI similiar "image Digital Metronome GUI.png"
+3.1 Text GUI to show : Metronome
+3.2Combo GUI to show and select: 1/4, 2/4,...
+3.3Combo GUI to show and select: 1 Beat 1 Sound, 1 Beat 1 2 Sound ...
+3.4Combo GUI to show and select: Accent On, Accent Off
+3.4Combo GUI to show and select BMP: 60,...120
+3.5Combo GUI to show and Set: Play, Stop 
+4.write a batch for BMP.py 
+
+###############
+1. play few time and loss sound
+2. only 1 item in Combo GUIs  
+3.1 only 1 item in Combo GUI to show and put more items to select: 1/4, 2/4,...
+3.2 only 1 item in Combo GUI to show and put more items to select: 1 Beat 1 Sound, 1 Beat 1 2 Sound ...
+3.3 only 1 item in Combo GUI to show and put more items to select: Accent On, Accent Off
+3.4 only 1 item in Combo GUI to show and dial to select BMP: 60,...120
+3.5 Combo GUI to show and Set: Play, Stop 
+4. test every GUI, if not work, fix it
+5. remove Combo GUI to show and Set: Play, Stop 
+6. set Combo GUI to show and dial to select BMP: 30,...300
+7. write README.md, incluse all prompts issued from user
+8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+
+
+
+
+
+
