@@ -14,6 +14,21 @@ Needs Python 3 with Tkinter (standard on Windows). No extra packages.
 
 GitHub: https://github.com/steveGau/BMP
 
+## Default startup
+
+Matches the reference screenshots:
+
+| Setting | Default |
+| --- | --- |
+| Window size | `422x912` (min `400x850`) |
+| Time signature | `1/4` |
+| Sound pattern | `1 Beat 1 2 Sound` |
+| Accent | `Accent On` |
+| Loudness | `10:1` |
+| 1st Sound | `1:1` (locked) |
+| 2nd Sound | `10:1` |
+| BPM | `50` (range `30–300`) |
+
 ## Controls
 
 | Control | What it does |
@@ -24,7 +39,7 @@ GitHub: https://github.com/steveGau/BMP
 | Accent combo | `Accent On`, `Accent Off` |
 | Loudness combo | `2:1` … `10:1` only (the first-sound scale `N`) |
 | Loudness bars | One bar per click in the selected sound pattern. 1st Sound is locked at `1:1`. Later sounds show `N:k` |
-| BPM dial | Drag or mouse-wheel, **30–300** |
+| BPM dial | Drag handle, mouse-wheel, or click trough left/right for **±1** fine step; range **30–300** |
 | TAP | Tap tempo; updates the dial |
 | Circular button | Play / Stop |
 
@@ -203,4 +218,31 @@ Attached image notes: when **1 Beat 1 2 3 4 Sound** is selected, show four loudn
 ```
 7. rewrite README.md, incluse all prompts issued from user
 8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+```
+
+### Prompt 15
+
+```
+https://github.com/anthropics/skills
+```
+
+### Prompt 16
+
+```
+@frontend-design or click the + icon
+```
+
+### Prompt 17
+
+```
+add capability to GUI BMP, when click at BMP slider bosy , it will shift 1 step to left or right for fine step
+```
+
+### Prompt 18
+
+```
+1. redo deauft GUI setting with image 1
+2. redo deauft GUI size with image 2
+3. rewrite README.md, incluse all prompts issued from user
+4. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
 ```

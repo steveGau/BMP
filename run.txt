@@ -76,3 +76,15 @@ do What I suggest in the attached image
 
 7. rewrite README.md, incluse all prompts issued from user
 8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+
+https://github.com/anthropics/skills
+
+@frontend-design or click the + icon
+
+add capability to GUI BMP, when click at BMP slider bosy , it will shift 1 step to left or right for fine step
+
+############
+1. redo deauft GUI setting with image 1
+2. redo deauft GUI size with image 2
+3. rewrite README.md, incluse all prompts issued from user
+4. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.

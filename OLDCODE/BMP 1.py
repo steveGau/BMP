@@ -83,13 +83,7 @@ ACCENT_OPTIONS = ("Accent On", "Accent Off")
 
 MIN_BPM = 30
 MAX_BPM = 300
-DEFAULT_BPM = 50
-DEFAULT_TIME_SIGNATURE = "1/4"
-DEFAULT_SOUND_PATTERN = "1 Beat 1 2 Sound"
-DEFAULT_ACCENT = "Accent On"
-DEFAULT_LOUDNESS = "10:1"
-DEFAULT_GEOMETRY = "422x912"
-DEFAULT_MINSIZE = (400, 850)
+DEFAULT_BPM = 120
 TAP_RESET_GAP_SEC = 2.5
 TAP_HISTORY = 8
 BEEP_FREQ = {"accent": 1320, "beat": 880, "sub": 660}
@@ -784,7 +778,6 @@ class BpmDial(tk.Frame):
         )
         self.scale.pack(side="left", fill="x", expand=True, padx=6)
         tk.Label(row, text=str(MAX_BPM), fg=MUTED, bg=BG, font=("Segoe UI", 9)).pack(side="right")
-        self.scale.bind("<Button-1>", self._on_body_click)
         self.scale.bind("<MouseWheel>", self._on_wheel)
         self.scale.bind("<Button-4>", self._on_wheel)
         self.scale.bind("<Button-5>", self._on_wheel)
@@ -810,17 +803,6 @@ class BpmDial(tk.Frame):
             return
         if self.command:
             self.command(value)
-
-    def _on_body_click(self, event: tk.Event) -> Optional[str]:
-        """Click trough left/right of the handle for ±1 BPM; leave handle drag alone."""
-        element = self.scale.identify(event.x, event.y)
-        if element == "trough1":
-            self.set_bpm(self.get() - 1)
-            return "break"
-        if element == "trough2":
-            self.set_bpm(self.get() + 1)
-            return "break"
-        return None
 
     def _on_wheel(self, event: tk.Event) -> str:
         delta = 1
@@ -962,8 +944,8 @@ class MetronomeApp:
         self.root = root
         self.root.title("BMP Player")
         self.root.configure(bg=BG)
-        self.root.geometry(DEFAULT_GEOMETRY)
-        self.root.minsize(*DEFAULT_MINSIZE)
+        self.root.geometry("420x1000")
+        self.root.minsize(380, 880)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.clicks = ClickPlayer()
@@ -998,15 +980,15 @@ class MetronomeApp:
         combos = tk.Frame(self.root, bg=BG)
         combos.pack(fill="x", padx=36, pady=(8, 4))
 
-        self.sig_box = DropCombo(combos, TIME_SIGNATURES, DEFAULT_TIME_SIGNATURE, command=self._on_settings_changed)
-        self.sound_box = DropCombo(combos, SOUND_PATTERNS, DEFAULT_SOUND_PATTERN, command=self._on_sound_changed)
-        self.accent_box = DropCombo(combos, ACCENT_OPTIONS, DEFAULT_ACCENT, command=self._on_settings_changed)
+        self.sig_box = DropCombo(combos, TIME_SIGNATURES, "2/4", command=self._on_settings_changed)
+        self.sound_box = DropCombo(combos, SOUND_PATTERNS, SOUND_PATTERNS[0], command=self._on_sound_changed)
+        self.accent_box = DropCombo(combos, ACCENT_OPTIONS, "Accent On", command=self._on_settings_changed)
         self.sig_box.pack(fill="x", pady=(0, 8))
         self.sound_box.pack(fill="x", pady=(0, 8))
         self.accent_box.pack(fill="x", pady=(0, 8))
 
         tk.Label(combos, text="Loudness", fg=COMBO_FG, bg=BG, font=("Segoe UI", 11, "bold"), anchor="w").pack(fill="x")
-        self.ratio_box = DropCombo(combos, N_TO_ONE_RATIOS, DEFAULT_LOUDNESS, command=self._on_ratio_combo)
+        self.ratio_box = DropCombo(combos, N_TO_ONE_RATIOS, "10:1", command=self._on_ratio_combo)
         self.ratio_box.pack(fill="x", pady=(2, 6))
         self.sound_bars_frame = tk.Frame(combos, bg=BG)
         self.sound_bars_frame.pack(fill="x", pady=(0, 8))

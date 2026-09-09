@@ -259,14 +259,27 @@ class GuiControlTests(unittest.TestCase):
             pass
 
     def test_closed_combos_show_one_selected_value(self) -> None:
-        self.assertEqual(self.app.sig_box.get(), "2/4")
-        self.assertEqual(self.app.sound_box.get(), "1 Beat 1 Sound")
+        self.assertEqual(self.app.sig_box.get(), "1/4")
+        self.assertEqual(self.app.sound_box.get(), "1 Beat 1 2 Sound")
         self.assertEqual(self.app.accent_box.get(), "Accent On")
         self.assertEqual(self.app.ratio_box.get(), "10:1")
-        self.assertFalse(self.app.ratio_box._enabled)
+        self.assertEqual(self.app.bpm_dial.get(), 50)
+        self.assertEqual(self.app.engine.bpm, 50)
+        self.assertEqual(self.app.engine.beats_per_measure, 1)
+        self.assertEqual(self.app.engine.subdivisions, 2)
+        self.assertEqual(self.app._ratio, (10, 1))
+        self.assertTrue(self.app.ratio_box._enabled)
         self.assertTrue(self.app.sound_bars[0].winfo_ismapped())
-        self.assertFalse(self.app.sound_bars[1].winfo_ismapped())
+        self.assertTrue(self.app.sound_bars[1].winfo_ismapped())
+        self.assertFalse(self.app.sound_bars[2].winfo_ismapped())
         self.assertEqual(str(self.app.sound_bars[0].scale.cget("state")), "disabled")
+        self.assertEqual(str(self.app.sound_bars[1].scale.cget("state")), "normal")
+        self.assertEqual(self.app.root.geometry().split("+")[0], "422x912")
+        self.assertEqual(self.app.root.minsize(), (400, 850))
+        self.assertEqual(BMP.DEFAULT_BPM, 50)
+        self.assertEqual(BMP.DEFAULT_TIME_SIGNATURE, "1/4")
+        self.assertEqual(BMP.DEFAULT_SOUND_PATTERN, "1 Beat 1 2 Sound")
+        self.assertEqual(BMP.DEFAULT_GEOMETRY, "422x912")
 
     def test_time_signature_dropdown_lists_all_items_and_selects(self) -> None:
         box = self.app.sig_box
@@ -407,6 +420,49 @@ class GuiControlTests(unittest.TestCase):
         pump(self.root)
         self.assertEqual(dial.get(), 72)
         self.assertEqual(self.app.engine.bpm, 72)
+
+    def test_bpm_slider_body_click_nudge_one_step(self) -> None:
+        dial = self.app.bpm_dial
+        dial.set_bpm(120)
+        pump(self.root)
+        scale = dial.scale
+        scale.update_idletasks()
+        width = max(scale.winfo_width(), 1)
+        height = max(scale.winfo_height(), 1)
+        y = height // 2
+
+        left_x = right_x = None
+        for x in range(0, width):
+            part = scale.identify(x, y)
+            if part == "trough1" and left_x is None:
+                left_x = x
+            if part == "trough2" and right_x is None:
+                right_x = x
+            if left_x is not None and right_x is not None:
+                break
+        self.assertIsNotNone(left_x, "expected trough left of BPM handle")
+        self.assertIsNotNone(right_x, "expected trough right of BPM handle")
+
+        event = tk.Event()
+        event.x = int(left_x)
+        event.y = y
+        self.assertEqual(dial._on_body_click(event), "break")
+        pump(self.root)
+        self.assertEqual(dial.get(), 119)
+        self.assertEqual(self.app.engine.bpm, 119)
+
+        event.x = int(right_x)
+        self.assertEqual(dial._on_body_click(event), "break")
+        pump(self.root)
+        self.assertEqual(dial.get(), 120)
+        self.assertEqual(self.app.engine.bpm, 120)
+
+        dial.set_bpm(30)
+        pump(self.root)
+        event.x = int(left_x)
+        dial._on_body_click(event)
+        pump(self.root)
+        self.assertEqual(dial.get(), 30)
 
     def test_circle_button_toggles_play_and_stop(self) -> None:
         self.app._toggle_play()
