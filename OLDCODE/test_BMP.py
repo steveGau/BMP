@@ -57,6 +57,15 @@ class ParseAndTimingTests(unittest.TestCase):
         self.assertEqual(BMP.clamp_bpm(87.4), 87)
         self.assertEqual(BMP.clamp_bpm(87.6), 88)
 
+    def test_clamp_volume_range(self) -> None:
+        self.assertEqual(BMP.clamp_volume(-1), 0)
+        self.assertEqual(BMP.clamp_volume(0), 0)
+        self.assertEqual(BMP.clamp_volume(100), 100)
+        self.assertEqual(BMP.clamp_volume(101), 100)
+        self.assertEqual(BMP.volume_gain(0), 0.0)
+        self.assertEqual(BMP.volume_gain(25), 0.25)
+        self.assertEqual(BMP.volume_gain(100), 1.0)
+
     def test_next_beat_wraps_measure(self) -> None:
         self.assertEqual(BMP.next_beat(1, 2), 2)
         self.assertEqual(BMP.next_beat(2, 2), 1)
@@ -274,12 +283,17 @@ class GuiControlTests(unittest.TestCase):
         self.assertFalse(self.app.sound_bars[2].winfo_ismapped())
         self.assertEqual(str(self.app.sound_bars[0].scale.cget("state")), "disabled")
         self.assertEqual(str(self.app.sound_bars[1].scale.cget("state")), "normal")
-        self.assertEqual(self.app.root.geometry().split("+")[0], "422x912")
-        self.assertEqual(self.app.root.minsize(), (400, 850))
+        self.assertEqual(self.app.root.geometry().split("+")[0], "422x970")
+        self.assertEqual(self.app.root.minsize(), (400, 900))
         self.assertEqual(BMP.DEFAULT_BPM, 50)
         self.assertEqual(BMP.DEFAULT_TIME_SIGNATURE, "1/4")
         self.assertEqual(BMP.DEFAULT_SOUND_PATTERN, "1 Beat 1 2 Sound")
-        self.assertEqual(BMP.DEFAULT_GEOMETRY, "422x912")
+        self.assertEqual(BMP.DEFAULT_GEOMETRY, "422x970")
+        self.assertEqual(self.app.volume_dial.get(), 100)
+        self.assertEqual(BMP.DEFAULT_VOLUME, 100)
+        self.assertEqual(BMP.volume_gain(100), 1.0)
+        self.assertEqual(BMP.volume_gain(50), 0.5)
+        self.assertEqual(BMP.volume_gain(0), 0.0)
 
     def test_time_signature_dropdown_lists_all_items_and_selects(self) -> None:
         box = self.app.sig_box
@@ -463,6 +477,54 @@ class GuiControlTests(unittest.TestCase):
         dial._on_body_click(event)
         pump(self.root)
         self.assertEqual(dial.get(), 30)
+
+    def test_volume_slider_drag_and_body_click(self) -> None:
+        dial = self.app.volume_dial
+        self.assertEqual(int(float(dial.scale.cget("from"))), 0)
+        self.assertEqual(int(float(dial.scale.cget("to"))), 100)
+        dial.set_volume(100)
+        pump(self.root)
+        self.assertEqual(dial.get(), 100)
+        dial.scale.set(40)
+        pump(self.root)
+        self.assertEqual(dial.get(), 40)
+        dial.set_volume(150)
+        pump(self.root)
+        self.assertEqual(dial.get(), 100)
+        dial.set_volume(-5)
+        pump(self.root)
+        self.assertEqual(dial.get(), 0)
+
+        dial.set_volume(50)
+        pump(self.root)
+        scale = dial.scale
+        scale.update_idletasks()
+        width = max(scale.winfo_width(), 1)
+        height = max(scale.winfo_height(), 1)
+        y = height // 2
+        left_x = right_x = None
+        for x in range(0, width):
+            part = scale.identify(x, y)
+            if part == "trough1" and left_x is None:
+                left_x = x
+            if part == "trough2" and right_x is None:
+                right_x = x
+            if left_x is not None and right_x is not None:
+                break
+        self.assertIsNotNone(left_x, "expected trough left of volume handle")
+        self.assertIsNotNone(right_x, "expected trough right of volume handle")
+
+        event = tk.Event()
+        event.x = int(left_x)
+        event.y = y
+        self.assertEqual(dial._on_body_click(event), "break")
+        pump(self.root)
+        self.assertEqual(dial.get(), 49)
+
+        event.x = int(right_x)
+        self.assertEqual(dial._on_body_click(event), "break")
+        pump(self.root)
+        self.assertEqual(dial.get(), 50)
 
     def test_circle_button_toggles_play_and_stop(self) -> None:
         self.app._toggle_play()

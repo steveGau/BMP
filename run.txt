@@ -77,14 +77,13 @@ do What I suggest in the attached image
 7. rewrite README.md, incluse all prompts issued from user
 8. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
 
-https://github.com/anthropics/skills
-
-@frontend-design or click the + icon
-
-add capability to GUI BMP, when click at BMP slider bosy , it will shift 1 step to left or right for fine step
-
-############
+############3
 1. redo deauft GUI setting with image 1
 2. redo deauft GUI size with image 2
 3. rewrite README.md, incluse all prompts issued from user
 4. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+
+1. add a slider gui to control volume, can drag slider gui for large step and click at slider body for 1 step increment.
+2. rewrite README.md, incluse all prompts issued from user
+3. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+

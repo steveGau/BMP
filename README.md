@@ -1,6 +1,6 @@
 # BMP Player
 
-A dark-theme digital metronome for Windows. The GUI follows the Digital Metronome layout: title, combo boxes, per-sound loudness bars, BPM dial, pendulum arc, TAP, and a circular play/stop button.
+A dark-theme digital metronome for Windows. The GUI follows the Digital Metronome layout: title, combo boxes, per-sound loudness bars, BPM dial, volume dial, pendulum arc, TAP, and a circular play/stop button.
 
 ## Run
 
@@ -16,11 +16,11 @@ GitHub: https://github.com/steveGau/BMP
 
 ## Default startup
 
-Matches the reference screenshots:
+Matches the reference screenshots (window height raised slightly for the Volume slider):
 
 | Setting | Default |
 | --- | --- |
-| Window size | `422x912` (min `400x850`) |
+| Window size | `422x970` (min `400x900`) |
 | Time signature | `1/4` |
 | Sound pattern | `1 Beat 1 2 Sound` |
 | Accent | `Accent On` |
@@ -28,6 +28,7 @@ Matches the reference screenshots:
 | 1st Sound | `1:1` (locked) |
 | 2nd Sound | `10:1` |
 | BPM | `50` (range `30–300`) |
+| Volume | `100` (range `0–100`) |
 
 ## Controls
 
@@ -40,6 +41,7 @@ Matches the reference screenshots:
 | Loudness combo | `2:1` … `10:1` only (the first-sound scale `N`) |
 | Loudness bars | One bar per click in the selected sound pattern. 1st Sound is locked at `1:1`. Later sounds show `N:k` |
 | BPM dial | Drag handle, mouse-wheel, or click trough left/right for **±1** fine step; range **30–300** |
+| Volume dial | Master volume. Drag handle for large changes; click trough left/right for **±1**; range **0–100** |
 | TAP | Tap tempo; updates the dial |
 | Circular button | Play / Stop |
 
@@ -47,10 +49,10 @@ Each combo shows the current value. Click it to open the full list.
 
 When **1 Beat 1 2 3 4 Sound** is selected, four bars appear. With Loudness `10:1` the defaults are `1:1`, `10:5`, `10:3`, `10:1`. Playback volume:
 
-- 1st sound = **1**
-- later sound = `(k / N) * 0.2`
+- 1st sound = **1** × master Volume
+- later sound = `(k / N) * 0.2` × master Volume
 
-So `10:1` plays at **0.02**, `10:2` at **0.04**, `10:5` at **0.10**. Two-sound and three-sound patterns show 2 or 3 bars the same way.
+So with Volume at 100, `10:1` plays at **0.02**, `10:2` at **0.04**, `10:5` at **0.10**. Two-sound and three-sound patterns show 2 or 3 bars the same way. Volume `0` is mute.
 
 ## Tests
 
@@ -245,4 +247,12 @@ add capability to GUI BMP, when click at BMP slider bosy , it will shift 1 step 
 2. redo deauft GUI size with image 2
 3. rewrite README.md, incluse all prompts issued from user
 4. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
+```
+
+### Prompt 19
+
+```
+1. add a slider gui to control volume, can drag slider gui for large step and click at slider body for 1 step increment.
+2. rewrite README.md, incluse all prompts issued from user
+3. commit all files and folder "D:\Users\a2907\Desktop\batch\BMP" to git and to push main to GitHub.
 ```

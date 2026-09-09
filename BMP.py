@@ -88,8 +88,11 @@ DEFAULT_TIME_SIGNATURE = "1/4"
 DEFAULT_SOUND_PATTERN = "1 Beat 1 2 Sound"
 DEFAULT_ACCENT = "Accent On"
 DEFAULT_LOUDNESS = "10:1"
-DEFAULT_GEOMETRY = "422x912"
-DEFAULT_MINSIZE = (400, 850)
+MIN_VOLUME = 0
+MAX_VOLUME = 100
+DEFAULT_VOLUME = 100
+DEFAULT_GEOMETRY = "422x970"
+DEFAULT_MINSIZE = (400, 900)
 TAP_RESET_GAP_SEC = 2.5
 TAP_HISTORY = 8
 BEEP_FREQ = {"accent": 1320, "beat": 880, "sub": 660}
@@ -124,6 +127,14 @@ def subdivisions_for_pattern(pattern: str) -> int:
 
 def clamp_bpm(bpm: float, lo: int = MIN_BPM, hi: int = MAX_BPM) -> int:
     return int(min(hi, max(lo, round(bpm))))
+
+
+def clamp_volume(volume: float, lo: int = MIN_VOLUME, hi: int = MAX_VOLUME) -> int:
+    return int(min(hi, max(lo, round(volume))))
+
+
+def volume_gain(volume: int) -> float:
+    return clamp_volume(volume) / float(MAX_VOLUME)
 
 
 def clamp_ratio_part(value: float) -> int:
@@ -361,7 +372,10 @@ class ClickPlayer:
     def play(self, kind: str, gain: float = 1.0) -> None:
         if not self._alive:
             return
-        item = (kind, max(0.008, min(1.0, gain)))
+        level = max(0.0, min(1.0, float(gain)))
+        if level <= 0.0:
+            return
+        item = (kind, level)
         try:
             self._queue.put_nowait(item)
         except queue.Full:
@@ -830,6 +844,102 @@ class BpmDial(tk.Frame):
         return "break"
 
 
+class VolumeDial(tk.Frame):
+    """Horizontal dial/slider for master volume 0-100. Drag for large steps; trough click for ±1."""
+
+    def __init__(
+        self,
+        parent: tk.Widget,
+        value: int = DEFAULT_VOLUME,
+        command: Optional[Callable[[int], None]] = None,
+    ) -> None:
+        super().__init__(parent, bg=BG)
+        self.command = command
+        self._syncing = False
+        self.var = tk.IntVar(value=clamp_volume(value))
+
+        header = tk.Frame(self, bg=BG)
+        header.pack(fill="x")
+        tk.Label(header, text="Volume", fg=COMBO_FG, bg=BG, font=("Segoe UI", 11, "bold")).pack(side="left")
+        self.value_label = tk.Label(
+            header,
+            text=str(self.var.get()),
+            fg=COMBO_FG,
+            bg=BG,
+            font=("Segoe UI", 11, "bold"),
+        )
+        self.value_label.pack(side="right")
+
+        row = tk.Frame(self, bg=BG)
+        row.pack(fill="x", pady=(2, 0))
+        tk.Label(row, text=str(MIN_VOLUME), fg=MUTED, bg=BG, font=("Segoe UI", 9)).pack(side="left")
+        self.scale = tk.Scale(
+            row,
+            from_=MIN_VOLUME,
+            to=MAX_VOLUME,
+            orient="horizontal",
+            resolution=1,
+            showvalue=0,
+            variable=self.var,
+            command=self._on_scale,
+            bg=BG,
+            fg=COMBO_FG,
+            troughcolor="#3A3A3A",
+            highlightthickness=0,
+            bd=0,
+            sliderrelief="flat",
+            activebackground=ACCENT,
+            length=240,
+            cursor="hand2",
+        )
+        self.scale.pack(side="left", fill="x", expand=True, padx=6)
+        tk.Label(row, text=str(MAX_VOLUME), fg=MUTED, bg=BG, font=("Segoe UI", 9)).pack(side="right")
+        self.scale.bind("<Button-1>", self._on_body_click)
+        self.scale.bind("<MouseWheel>", self._on_wheel)
+        self.scale.bind("<Button-4>", self._on_wheel)
+        self.scale.bind("<Button-5>", self._on_wheel)
+
+    def get(self) -> int:
+        return int(self.var.get())
+
+    def set_volume(self, volume: int, notify: bool = True) -> None:
+        value = clamp_volume(volume)
+        self._syncing = True
+        try:
+            self.var.set(value)
+            self.value_label.config(text=str(value))
+        finally:
+            self._syncing = False
+        if notify and self.command:
+            self.command(value)
+
+    def _on_scale(self, raw: str) -> None:
+        value = clamp_volume(int(float(raw)))
+        self.value_label.config(text=str(value))
+        if self._syncing:
+            return
+        if self.command:
+            self.command(value)
+
+    def _on_body_click(self, event: tk.Event) -> Optional[str]:
+        """Click trough left/right of the handle for ±1; leave handle drag alone."""
+        element = self.scale.identify(event.x, event.y)
+        if element == "trough1":
+            self.set_volume(self.get() - 1)
+            return "break"
+        if element == "trough2":
+            self.set_volume(self.get() + 1)
+            return "break"
+        return None
+
+    def _on_wheel(self, event: tk.Event) -> str:
+        delta = 1
+        if getattr(event, "num", None) == 5 or getattr(event, "delta", 0) < 0:
+            delta = -1
+        self.set_volume(self.get() + delta)
+        return "break"
+
+
 SOUND_BAR_TITLES = ("1st Sound", "2nd Sound", "3rd Sound", "4th Sound")
 
 
@@ -1017,7 +1127,9 @@ class MetronomeApp:
         self._sync_ratio_controls(reset=True)
 
         self.bpm_dial = BpmDial(combos, value=DEFAULT_BPM, command=self._on_bpm_dial)
-        self.bpm_dial.pack(fill="x", pady=(0, 10))
+        self.bpm_dial.pack(fill="x", pady=(0, 8))
+        self.volume_dial = VolumeDial(combos, value=DEFAULT_VOLUME, command=self._on_volume_dial)
+        self.volume_dial.pack(fill="x", pady=(0, 10))
 
         self.gauge = tk.Canvas(self.root, bg=BG, highlightthickness=0, height=320)
         self.gauge.pack(fill="both", expand=True, padx=12, pady=(4, 8))
@@ -1132,6 +1244,9 @@ class MetronomeApp:
         self._beat_span = beat_interval_sec(bpm)
         self._redraw_gauge()
 
+    def _on_volume_dial(self, _volume: int) -> None:
+        return
+
     def _toggle_play(self) -> None:
         if self.engine.playing:
             self._stop()
@@ -1172,7 +1287,7 @@ class MetronomeApp:
         return "break"
 
     def _on_engine_click(self, beat: int, subdivision: int, kind: str) -> None:
-        self.clicks.play(kind, loudness_gain(self._ratio, subdivision))
+        self.clicks.play(kind, loudness_gain(self._ratio, subdivision) * volume_gain(self.volume_dial.get()))
         if self._closed:
             return
         try:
